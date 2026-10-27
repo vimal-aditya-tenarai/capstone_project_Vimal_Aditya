@@ -10,20 +10,17 @@ phases:
   pre_build:
     commands:
       - export GOCACHE=/tmp/go-cache
-      # Change working directory into your nested project folder
       - cd ecommerce-management-system
       - go mod download
   build:
     commands:
       - export GOCACHE=/tmp/go-cache
-      - cd ecommerce-management-system
       - echo "Building all microservices..."
       - GOOS=linux GOARCH=amd64 go build -o gateway_bin ./gateway
       - GOOS=linux GOARCH=amd64 go build -o auth_bin ./services/auth
       - GOOS=linux GOARCH=amd64 go build -o product_bin ./services/product
       - GOOS=linux GOARCH=amd64 go build -o order_bin ./services/order
 artifacts:
-# Sets the root of the output deployment bundle so Elastic Beanstalk receives files at top-level
   base-directory: ecommerce-management-system
   files:
     - gateway_bin
