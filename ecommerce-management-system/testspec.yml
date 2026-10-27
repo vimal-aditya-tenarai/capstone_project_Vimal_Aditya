@@ -1,0 +1,16 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      golang: 1.25
+    commands:
+      - mkdir -p /tmp/go-cache
+      - go version
+  build:
+    commands:
+      - export GOCACHE=/tmp/go-cache
+      - cd ecommerce-management-system
+      - go mod download
+      - echo "Running concurrency race tests in pipeline test stage..."
+      - go test -v -race ./services/order/tests/...
