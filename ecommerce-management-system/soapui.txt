@@ -1,0 +1,418 @@
+================================================================================
+           ECOMMERCE MICROSERVICES (V8) - SOAPUI REST TESTING GUIDE
+================================================================================
+
+This document contains step-by-step instructions to configure and test the 
+v8 microservices architecture using SoapUI (or ReadyAPI / Postman).
+
+--------------------------------------------------------------------------------
+1. SERVICE & PORT MAPPING
+--------------------------------------------------------------------------------
+- API Gateway:      http://localhost:8080 (Single entry point & Consul router)
+- Auth Service:     http://localhost:8083 (Dedicated Authentication Microservice)
+- Product Service:  http://localhost:8081 (Products Microservice)
+- Order Service:    http://localhost:8082 (Orders Microservice with Resilience)
+- Consul UI:        http://localhost:8500 (Service Registry & Discovery)
+
+--------------------------------------------------------------------------------
+2. USER CREDENTIALS & JWT GENERATION
+--------------------------------------------------------------------------------
+You can generate tokens directly via Auth Service (8083) OR via Gateway (8080).
+
+A. ADMIN USER:
+   Direct URL:   POST http://localhost:8083/login
+   Via Gateway:  POST http://localhost:8080/login
+   Headers:      Content-Type: application/json
+   Payload:
+   {
+     "username": "admin",
+     "password": "admin123"
+   }
+   Expected Response (200 OK):
+   {
+     "token": "eyJhbGciOi...",
+     "tokenType": "Bearer",
+     "username": "admin",
+     "role": "admin"
+   }
+
+B. NORMAL USER:
+   Direct URL:   POST http://localhost:8083/login
+   Via Gateway:  POST http://localhost:8080/login
+   Headers:      Content-Type: application/json
+   Payload:
+   {
+     "username": "user",
+     "password": "user123"
+   }
+   Expected Response (200 OK):
+   {
+     "token": "eyJhbGciOi...",
+     "tokenType": "Bearer",
+     "username": "user",
+     "role": "user"
+   }
+
+--------------------------------------------------------------------------------
+3. SOAPUI PROJECT SETUP INSTRUCTIONS
+--------------------------------------------------------------------------------
+1. Open SoapUI.
+2. Go to File -> New REST Project.
+3. Enter URI: http://localhost:8080
+4. For endpoints requiring authentication:
+   - Select the request window.
+   - Click the "Headers" tab in the bottom-left pane.
+   - Click the '+' icon.
+   - Header: Authorization
+   - Value:  Bearer <COPIED_JWT_TOKEN>
+5. For POST / PUT requests:
+   - Header: Content-Type: application/json
+   - Paste the payload into the lower request editor window.
+
+--------------------------------------------------------------------------------
+4. TEST SUITES & REQUEST DETAILS
+--------------------------------------------------------------------------------
+
+================================================================================
+SUITE A: HEALTH & LIVENESS CHECKS (PUBLIC / NO JWT REQUIRED)
+================================================================================
+
+Request A1: API Gateway Health
+- Method:   GET
+- URL:      http://localhost:8080/health
+- Headers:  None
+- Response: 200 OK
+  {
+    "service": "api-gateway",
+    "status": "UP"
+  }
+
+Request A2: Dedicated Auth Service Health
+- Method:   GET
+- URL:      http://localhost:8083/health
+- Headers:  None
+- Response: 200 OK
+  {
+    "service": "auth-service",
+    "status": "UP"
+  }
+
+Request A3: Product Service Liveness Probe
+- Method:   GET
+- URL:      http://localhost:8081/health/live
+- Headers:  None
+- Response: 200 OK
+  {
+    "service": "product-service",
+    "status": "UP"
+  }
+
+Request A4: Product Service Readiness Probe (Checks PostgreSQL DB Pool)
+- Method:   GET
+- URL:      http://localhost:8081/health/ready
+- Headers:  None
+- Response: 200 OK
+  {
+    "service": "product-service",
+    "status": "READY",
+    "database": "UP"
+  }
+
+Request A5: Order Service Liveness Probe
+- Method:   GET
+- URL:      http://localhost:8082/health/live
+- Headers:  None
+- Response: 200 OK
+  {
+    "service": "order-service",
+    "status": "UP"
+  }
+
+Request A6: Order Service Readiness Probe (Checks PostgreSQL DB Pool)
+- Method:   GET
+- URL:      http://localhost:8082/health/ready
+- Headers:  None
+- Response: 200 OK
+  {
+    "service": "order-service",
+    "status": "READY",
+    "database": "UP"
+  }
+
+================================================================================
+SUITE B: ADMIN USER OPERATIONS (VIA API GATEWAY PORT 8080)
+================================================================================
+*Prerequisite*: Obtain <ADMIN_JWT_TOKEN> using username "admin" & password "admin123"
+
+Request B1: Admin Create Product
+- Method:   POST
+- URL:      http://localhost:8080/api/v1/products
+- Headers:  
+    Authorization: Bearer <ADMIN_JWT_TOKEN>
+    Content-Type:  application/json
+    X-Request-ID:  soapui-admin-prod-001
+- Request Body:
+  {
+    "name": "Intel Core i9-14900K Processor",
+    "price": 589.99
+  }
+- Expected Response: 201 Created
+  {
+    "id": 4,
+    "name": "Intel Core i9-14900K Processor",
+    "price": 589.99
+  }
+
+Request B2: Admin List All Products
+- Method:   GET
+- URL:      http://localhost:8080/api/v1/products
+- Headers:  
+    Authorization: Bearer <ADMIN_JWT_TOKEN>
+- Expected Response: 200 OK
+  [
+    {"id": 1, "name": "Mechanical Keyboard", "price": 89.99},
+    {"id": 2, "name": "Wireless Gaming Mouse", "price": 49.50},
+    {"id": 3, "name": "4K Ultra HD Monitor", "price": 329.00},
+    {"id": 4, "name": "Intel Core i9-14900K Processor", "price": 589.99}
+  ]
+
+Request B3: Admin Create Order (Dynamic Price Resolution via Product Client)
+- Method:   POST
+- URL:      http://localhost:8080/api/v1/orders
+- Headers:  
+    Authorization: Bearer <ADMIN_JWT_TOKEN>
+    Content-Type:  application/json
+    X-Request-ID:  soapui-admin-order-001
+- Request Body:
+  {
+    "customerId": 101,
+    "productId": 1,
+    "quantity": 2
+  }
+- Expected Response: 201 Created
+  {
+    "id": 3,
+    "customerId": 101,
+    "productId": 1,
+    "quantity": 2,
+    "total": 179.98,
+    "status": "CREATED"
+  }
+
+Request B4: Admin List All Orders
+- Method:   GET
+- URL:      http://localhost:8080/api/v1/orders
+- Headers:  
+    Authorization: Bearer <ADMIN_JWT_TOKEN>
+- Expected Response: 200 OK
+
+Request B5: Admin Update Order Status to CONFIRMED
+- Method:   PUT
+- URL:      http://localhost:8080/api/v1/orders/3/status
+- Headers:  
+    Authorization: Bearer <ADMIN_JWT_TOKEN>
+    Content-Type:  application/json
+- Request Body:
+  {
+    "status": "CONFIRMED"
+  }
+- Expected Response: 200 OK
+  {
+    "id": 3,
+    "customerId": 101,
+    "productId": 1,
+    "quantity": 2,
+    "total": 179.98,
+    "status": "CONFIRMED"
+  }
+
+Request B6: Admin Cancel Order
+- Method:   PUT
+- URL:      http://localhost:8080/api/v1/orders/3/status
+- Headers:  
+    Authorization: Bearer <ADMIN_JWT_TOKEN>
+    Content-Type:  application/json
+- Request Body:
+  {
+    "status": "CANCELLED"
+  }
+- Expected Response: 200 OK
+  {
+    "id": 3,
+    "customerId": 101,
+    "productId": 1,
+    "quantity": 2,
+    "total": 179.98,
+    "status": "CANCELLED"
+  }
+
+================================================================================
+SUITE C: NORMAL USER OPERATIONS (VIA API GATEWAY PORT 8080)
+================================================================================
+*Prerequisite*: Obtain <USER_JWT_TOKEN> using username "user" & password "user123"
+
+Request C1: User Fetch Specific Product
+- Method:   GET
+- URL:      http://localhost:8080/api/v1/products/2
+- Headers:  
+    Authorization: Bearer <USER_JWT_TOKEN>
+- Expected Response: 200 OK
+  {
+    "id": 2,
+    "name": "Wireless Gaming Mouse",
+    "price": 49.50
+  }
+
+Request C2: User List All Products
+- Method:   GET
+- URL:      http://localhost:8080/api/v1/products
+- Headers:  
+    Authorization: Bearer <USER_JWT_TOKEN>
+- Expected Response: 200 OK
+
+Request C3: User Place an Order
+- Method:   POST
+- URL:      http://localhost:8080/api/v1/orders
+- Headers:  
+    Authorization: Bearer <USER_JWT_TOKEN>
+    Content-Type:  application/json
+    X-Request-ID:  soapui-user-order-002
+- Request Body:
+  {
+    "customerId": 102,
+    "productId": 2,
+    "quantity": 3
+  }
+- Expected Response: 201 Created
+  {
+    "id": 4,
+    "customerId": 102,
+    "productId": 2,
+    "quantity": 3,
+    "total": 148.50,
+    "status": "CREATED"
+  }
+
+Request C4: User View Own Order
+- Method:   GET
+- URL:      http://localhost:8080/api/v1/orders/4
+- Headers:  
+    Authorization: Bearer <USER_JWT_TOKEN>
+- Expected Response: 200 OK
+  {
+    "id": 4,
+    "customerId": 102,
+    "productId": 2,
+    "quantity": 3,
+    "total": 148.50,
+    "status": "CREATED"
+  }
+
+================================================================================
+SUITE D: DIRECT SERVICE CALLS (BYPASSING API GATEWAY)
+================================================================================
+
+Direct Call D1: Order Service - Create Order
+- Method:   POST
+- URL:      http://localhost:8082/api/v1/orders
+- Headers:  
+    Authorization: Bearer <ADMIN_JWT_TOKEN>
+    Content-Type:  application/json
+- Request Body:
+  {
+    "customerId": 105,
+    "productId": 3,
+    "quantity": 1
+  }
+- Expected Response: 201 Created
+
+Direct Call D2: Product Service - Fetch Product
+- Method:   GET
+- URL:      http://localhost:8081/api/v1/products/1
+- Headers:  
+    Authorization: Bearer <ADMIN_JWT_TOKEN>
+- Expected Response: 200 OK
+
+================================================================================
+SUITE E: GRAPHQL INTERFACE (VIA API GATEWAY PORT 8080)
+================================================================================
+
+Request E1: GraphQL - Fetch All Products
+- Method:   POST
+- URL:      http://localhost:8080/graphql
+- Headers:  Content-Type: application/json
+- Payload:
+  {
+    "query": "query { products { id name price } }"
+  }
+- Expected Response: 200 OK with product list
+
+Request E2: GraphQL - Create Order Mutation
+- Method:   POST
+- URL:      http://localhost:8080/graphql
+- Headers:  Content-Type: application/json
+- Payload:
+  {
+    "query": "mutation { createOrder(productId: 1, quantity: 2, total: 179.98) { id productId quantity total } }"
+  }
+- Expected Response: 200 OK with created order details
+
+================================================================================
+SUITE F: SECURITY & RESILIENCE ERROR VALIDATION
+================================================================================
+
+Test F1: Missing Authorization Header
+- Method:   GET
+- URL:      http://localhost:8080/api/v1/orders
+- Headers:  (Do not provide Authorization header)
+- Expected: 401 Unauthorized
+  {
+    "error": "missing Bearer token"
+  }
+
+Test F2: Invalid / Expired Token
+- Method:   GET
+- URL:      http://localhost:8080/api/v1/orders
+- Headers:  
+    Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid.signature
+- Expected: 401 Unauthorized
+  {
+    "error": "invalid or expired token"
+  }
+
+Test F3: Invalid Order Status Transition
+- Method:   PUT
+- URL:      http://localhost:8080/api/v1/orders/1/status
+- Headers:  
+    Authorization: Bearer <ADMIN_JWT_TOKEN>
+    Content-Type:  application/json
+- Request Body:
+  {
+    "status": "SHIPPED"
+  }
+- Expected: 400 Bad Request
+  {
+    "error": "invalid status: must be CREATED, CONFIRMED, or CANCELLED"
+  }
+
+Test F4: Non-existent Order Lookup
+- Method:   GET
+- URL:      http://localhost:8080/api/v1/orders/999999
+- Headers:  
+    Authorization: Bearer <ADMIN_JWT_TOKEN>
+- Expected: 404 Not Found
+  {
+    "error": "order not found"
+  }
+
+Test F5: Circuit Breaker & Resilience Verification
+- Stop the Product Service (`localhost:8081`).
+- Send 3 consecutive Create Order requests:
+  POST http://localhost:8080/api/v1/orders
+- Requests 1 and 2 will retry with exponential backoff (100ms, 200ms).
+- Request 3 trips the circuit breaker to OPEN state.
+- Expected: 502 Bad Gateway
+  {
+    "error": "product service unavailable or circuit open: resilience failure: circuit breaker is open"
+  }
+================================================================================  

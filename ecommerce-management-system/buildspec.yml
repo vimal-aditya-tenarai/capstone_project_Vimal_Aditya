@@ -1,0 +1,28 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      golang: 1.25
+    commands:
+      - mkdir -p /tmp/go-cache
+      - go version
+  pre_build:
+    commands:
+      - export GOCACHE=/tmp/go-cache
+      - go mod download
+  build:
+    commands:
+      - export GOCACHE=/tmp/go-cache
+      - echo "Building all microservices..."
+      - GOOS=linux GOARCH=amd64 go build -o gateway_bin ./gateway
+      - GOOS=linux GOARCH=amd64 go build -o auth_bin ./services/auth
+      - GOOS=linux GOARCH=amd64 go build -o product_bin ./services/product
+      - GOOS=linux GOARCH=amd64 go build -o order_bin ./services/order
+artifacts:
+  files:
+    - gateway_bin
+    - auth_bin
+    - product_bin
+    - order_bin
+    - Procfile

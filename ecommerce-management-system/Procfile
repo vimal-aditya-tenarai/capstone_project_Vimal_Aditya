@@ -1,0 +1,1 @@
+web: ./auth_bin & ./product_bin & ./order_bin & exec ./gateway_bin
