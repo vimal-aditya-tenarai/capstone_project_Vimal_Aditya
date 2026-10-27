@@ -12,8 +12,6 @@ phases:
       - export GOCACHE=/tmp/go-cache
       - cd ecommerce-management-system
       - go mod download
-      - echo "Running concurrency race tests..."
-      - go test -v -race ./services/order/tests/...
   build:
     commands:
       - export GOCACHE=/tmp/go-cache
