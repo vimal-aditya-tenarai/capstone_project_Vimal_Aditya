@@ -22,6 +22,8 @@ phases:
       - GOOS=linux GOARCH=amd64 go build -o auth_bin ./services/auth
       - GOOS=linux GOARCH=amd64 go build -o product_bin ./services/product
       - GOOS=linux GOARCH=amd64 go build -o order_bin ./services/order
+      - chmod +x gateway_bin auth_bin product_bin order_bin
+      - printf "web: ./auth_bin & ./product_bin & ./order_bin & exec ./gateway_bin\n" > Procfile
 artifacts:
   base-directory: ecommerce-management-system
   files:
