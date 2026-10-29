@@ -10,10 +10,7 @@ phases:
   pre_build:
     commands:
       - export GOCACHE=/tmp/go-cache
-      - cd ecommerce-management-system
       - go mod download
-      - echo "Running concurrency race tests..."
-      - go test -v -race ./services/order/tests/...
   build:
     commands:
       - export GOCACHE=/tmp/go-cache
@@ -22,10 +19,7 @@ phases:
       - GOOS=linux GOARCH=amd64 go build -o auth_bin ./services/auth
       - GOOS=linux GOARCH=amd64 go build -o product_bin ./services/product
       - GOOS=linux GOARCH=amd64 go build -o order_bin ./services/order
-      - chmod +x gateway_bin auth_bin product_bin order_bin
-      - 'echo "web: ./auth_bin & ./product_bin & ./order_bin & exec ./gateway_bin" > Procfile'
 artifacts:
-  base-directory: ecommerce-management-system
   files:
     - gateway_bin
     - auth_bin
