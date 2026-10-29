@@ -17,7 +17,6 @@ phases:
   build:
     commands:
       - export GOCACHE=/tmp/go-cache
-      - cd ecommerce-management-system
       - echo "Building all microservices..."
       - GOOS=linux GOARCH=amd64 go build -o gateway_bin ./gateway
       - GOOS=linux GOARCH=amd64 go build -o auth_bin ./services/auth
